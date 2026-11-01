@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}{{ assignment.title }}{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="{{ assignment.lesson.get_absolute_url }}">{{ assignment.lesson.title }}</a></li>
+    <li class="breadcrumb-item active">{{ assignment.title }}</li>
+  </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+  <h1 class="h3">{{ assignment.title }}</h1>
+  {% if user.can_manage_assignments %}
+  <div>
+    <a class="btn btn-outline-primary btn-sm" href="{% url 'assignment_update' assignment.pk %}">Редагувати</a>
+    <a class="btn btn-outline-danger btn-sm" href="{% url 'assignment_delete' assignment.pk %}">Видалити</a>
+  </div>
+  {% endif %}
+</div>
+<p>{{ assignment.description|linebreaksbr }}</p>
+<p class="text-muted small">Максимальний бал: {{ assignment.max_score }}
+  {% if assignment.due_date %} · Термін: {{ assignment.due_date|date:"d.m.Y H:i" }}{% endif %}</p>
+
+{% if user.can_manage_assignments %}
+<h2 class="h4 mt-4">Роботи студентів</h2>
+<table class="table table-sm align-middle">
+  <thead><tr><th>Студент</th><th>Здано</th><th>Оцінка</th><th></th></tr></thead>
+  <tbody>
+  {% for s in submissions %}
+    <tr>
+      <td>{{ s.student }}</td>
+      <td>{{ s.submitted_at|date:"d.m.Y H:i" }}</td>
+      <td>{% if s.is_graded %}{{ s.score }} / {{ assignment.max_score }}{% else %}—{% endif %}</td>
+      <td><a class="btn btn-sm btn-outline-primary" href="{% url 'submission_grade' s.pk %}">Переглянути / оцінити</a></td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="4" class="text-muted">Робіт ще немає.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<h2 class="h4 mt-4">Ваша робота</h2>
+{% if submission and submission.is_graded %}
+<div class="alert alert-success">
+  Оцінка: <strong>{{ submission.score }} / {{ assignment.max_score }}</strong>
+  {% if submission.feedback %}<br>Коментар: {{ submission.feedback }}{% endif %}
+</div>
+{% endif %}
+{% if submission %}
+<div class="card mb-3"><div class="card-body">
+  {% if submission.text %}<p>{{ submission.text|linebreaksbr }}</p>{% endif %}
+  {% if submission.file %}<p><a href="{{ submission.file.url }}">Прикріплений файл</a></p>{% endif %}
+  <span class="text-muted small">Збережено {{ submission.submitted_at|date:"d.m.Y H:i" }}</span>
+</div></div>
+{% endif %}
+{% if form %}
+<form method="post" enctype="multipart/form-data">
+  {% csrf_token %}
+  {{ form.as_div }}
+  <button class="btn btn-primary mt-3" type="submit">{% if submission %}Оновити{% else %}Здати{% endif %}</button>
+</form>
+{% endif %}
+{% endif %}
+{% endblock %}

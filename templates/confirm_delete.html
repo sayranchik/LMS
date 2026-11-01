@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Видалення{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-6">
+    <h1 class="h4">Видалити «{{ object }}»?</h1>
+    <p class="text-muted">Пов'язані дані також будуть видалені. Дію не можна скасувати.</p>
+    <form method="post">
+      {% csrf_token %}
+      <button class="btn btn-danger" type="submit">Так, видалити</button>
+      <a class="btn btn-secondary" href="javascript:history.back()">Скасувати</a>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Оцінки{% endblock %}
+{% block content %}
+<h1 class="h3 mb-3">Оцінки</h1>
+<div class="table-responsive">
+<table class="table table-striped align-middle">
+  <thead><tr>
+    {% if user.can_manage_assignments %}<th>Студент</th>{% endif %}
+    <th>Курс</th><th>Завдання</th><th>Оцінка</th>
+    {% if user.can_manage_assignments %}<th></th>{% endif %}
+  </tr></thead>
+  <tbody>
+  {% for s in submissions %}
+    <tr>
+      {% if user.can_manage_assignments %}<td>{{ s.student }}</td>{% endif %}
+      <td>{{ s.assignment.lesson.module.course.title }}</td>
+      <td><a href="{{ s.assignment.get_absolute_url }}">{{ s.assignment.title }}</a></td>
+      <td>{% if s.is_graded %}{{ s.score }} / {{ s.assignment.max_score }}{% else %}<span class="text-muted">не оцінено</span>{% endif %}</td>
+      {% if user.can_manage_assignments %}
+      <td><a class="btn btn-sm btn-outline-primary" href="{% url 'submission_grade' s.pk %}">{% if s.is_graded %}Змінити{% else %}Оцінити{% endif %}</a></td>
+      {% endif %}
+    </tr>
+  {% empty %}
+    <tr><td colspan="5" class="text-muted">Записів немає.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% if is_paginated %}
+<nav><ul class="pagination">
+  {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">‹</a></li>{% endif %}
+  <li class="page-item disabled"><span class="page-link">{{ page_obj.number }} / {{ paginator.num_pages }}</span></li>
+  {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">›</a></li>{% endif %}
+</ul></nav>
+{% endif %}
+{% endblock %}

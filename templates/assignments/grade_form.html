@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Оцінювання{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+    <h1 class="h3">Оцінювання: {{ object.assignment.title }}</h1>
+    <p class="text-muted">Студент: {{ object.student }} · Максимум: {{ object.assignment.max_score }}</p>
+    <div class="card mb-3"><div class="card-body">
+      {% if object.text %}<p>{{ object.text|linebreaksbr }}</p>{% endif %}
+      {% if object.file %}<p><a href="{{ object.file.url }}">Прикріплений файл</a></p>{% endif %}
+      {% if not object.text and not object.file %}<p class="text-muted mb-0">Відповідь порожня.</p>{% endif %}
+    </div></div>
+    <form method="post">
+      {% csrf_token %}
+      {{ form.as_div }}
+      <button class="btn btn-primary mt-3" type="submit">Зберегти оцінку</button>
+      <a class="btn btn-link mt-3" href="{{ object.assignment.get_absolute_url }}">Назад</a>
+    </form>
+  </div>
+</div>
+{% endblock %}

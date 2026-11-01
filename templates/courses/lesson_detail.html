@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}{{ lesson.title }}{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="{% url 'course_detail' lesson.module.course.pk %}">{{ lesson.module.course.title }}</a></li>
+    <li class="breadcrumb-item">{{ lesson.module.title }}</li>
+    <li class="breadcrumb-item active">{{ lesson.title }}</li>
+  </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+  <h1 class="h3">{{ lesson.title }}</h1>
+  {% if user.is_lms_admin %}
+  <div>
+    <a class="btn btn-outline-primary btn-sm" href="{% url 'lesson_update' lesson.pk %}">Редагувати</a>
+    <a class="btn btn-outline-danger btn-sm" href="{% url 'lesson_delete' lesson.pk %}">Видалити</a>
+  </div>
+  {% endif %}
+</div>
+
+{% if lesson.content %}<div class="lesson-content my-3">{{ lesson.content }}</div>{% endif %}
+{% if lesson.image %}<img class="lesson-image my-3" src="{{ lesson.image.url }}" alt="{{ lesson.title }}">{% endif %}
+{% if lesson.video_url %}
+<div class="ratio ratio-16x9 my-3">
+  <iframe src="{{ lesson.video_embed_url }}" title="Відео до уроку" allowfullscreen></iframe>
+</div>
+{% endif %}
+
+<div class="d-flex justify-content-between align-items-center mt-4 mb-2">
+  <h2 class="h4 mb-0">Завдання</h2>
+  {% if user.can_manage_assignments %}<a class="btn btn-success btn-sm" href="{% url 'assignment_create' lesson.pk %}">+ Завдання</a>{% endif %}
+</div>
+<ul class="list-group">
+  {% for a in lesson.assignments.all %}
+  <li class="list-group-item"><a href="{{ a.get_absolute_url }}">{{ a.title }}</a>
+    {% if a.due_date %}<span class="text-muted small"> · до {{ a.due_date|date:"d.m.Y H:i" }}</span>{% endif %}
+  </li>
+  {% empty %}
+  <li class="list-group-item text-muted">Завдань немає.</li>
+  {% endfor %}
+</ul>
+{% endblock %}

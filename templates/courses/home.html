@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Головна{% endblock %}
+{% block content %}
+<div class="p-4 mb-4 bg-light rounded-3">
+  <h1 class="display-6">Система управління навчанням</h1>
+  <p class="lead mb-2">Доступно курсів: <strong>{{ courses_count }}</strong></p>
+  <a class="btn btn-primary" href="{% url 'course_list' %}">Усі курси</a>
+  {% if not user.is_authenticated %}
+  <a class="btn btn-outline-primary" href="{% url 'register' %}">Приєднатися</a>
+  {% endif %}
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-4">
+    <h2 class="h5">Нові курси</h2>
+    <div class="list-group">
+      {% for course in new_courses %}
+      <a class="list-group-item list-group-item-action" href="{% url 'course_detail' course.pk %}">{{ course.title }}</a>
+      {% empty %}
+      <div class="list-group-item text-muted">Курсів поки немає.</div>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <h2 class="h5">Оголошення</h2>
+    {% for a in announcements %}
+    <div class="card mb-2"><div class="card-body">
+      <h3 class="h6 card-title">{{ a.title }}</h3>
+      <p class="card-text small mb-1">{{ a.body|truncatechars:160 }}</p>
+      <span class="text-muted small">{{ a.created_at|date:"d.m.Y" }}</span>
+    </div></div>
+    {% empty %}
+    <p class="text-muted">Оголошень немає.</p>
+    {% endfor %}
+  </div>
+  <div class="col-lg-4">
+    <h2 class="h5">Найближчі події</h2>
+    {% for e in events %}
+    <div class="card mb-2"><div class="card-body">
+      <h3 class="h6 card-title">{{ e.title }}</h3>
+      <span class="text-muted small">{{ e.starts_at|date:"d.m.Y H:i" }}</span>
+    </div></div>
+    {% empty %}
+    <p class="text-muted">Подій немає.</p>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

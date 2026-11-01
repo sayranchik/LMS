@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Курси{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h3 mb-0">Курси</h1>
+  {% if user.is_lms_admin %}<a class="btn btn-success" href="{% url 'course_create' %}">+ Новий курс</a>{% endif %}
+</div>
+<div class="row g-3">
+  {% for course in courses %}
+  <div class="col-md-6 col-lg-4">
+    <div class="card h-100 card-hover">
+      <div class="card-body">
+        <h2 class="h5 card-title"><a class="stretched-link text-decoration-none" href="{% url 'course_detail' course.pk %}">{{ course.title }}</a></h2>
+        <p class="card-text">{{ course.description|truncatechars:140 }}</p>
+        {% if course.teacher %}<p class="small text-muted mb-0">Викладач: {{ course.teacher }}</p>{% endif %}
+      </div>
+    </div>
+  </div>
+  {% empty %}
+  <p class="text-muted">Курсів поки немає.</p>
+  {% endfor %}
+</div>
+{% if is_paginated %}
+<nav class="mt-4"><ul class="pagination">
+  {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">‹</a></li>{% endif %}
+  <li class="page-item disabled"><span class="page-link">{{ page_obj.number }} / {{ paginator.num_pages }}</span></li>
+  {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">›</a></li>{% endif %}
+</ul></nav>
+{% endif %}
+{% endblock %}

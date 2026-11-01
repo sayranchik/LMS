@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}{{ course.title }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+  <h1 class="h3">{{ course.title }}</h1>
+  {% if user.is_lms_admin %}
+  <div>
+    <a class="btn btn-outline-primary btn-sm" href="{% url 'course_update' course.pk %}">Редагувати</a>
+    <a class="btn btn-outline-danger btn-sm" href="{% url 'course_delete' course.pk %}">Видалити</a>
+  </div>
+  {% endif %}
+</div>
+{% if course.teacher %}<p class="text-muted">Викладач: {{ course.teacher }}</p>{% endif %}
+<p>{{ course.description|linebreaksbr }}</p>
+
+<div class="d-flex justify-content-between align-items-center mt-4 mb-2">
+  <h2 class="h4 mb-0">Модулі</h2>
+  {% if user.is_lms_admin %}<a class="btn btn-success btn-sm" href="{% url 'module_create' course.pk %}">+ Модуль</a>{% endif %}
+</div>
+
+{% for module in course.modules.all %}
+<div class="card mb-3">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <strong>{{ module.order }}. {{ module.title }}</strong>
+    {% if user.is_lms_admin %}
+    <span>
+      <a class="btn btn-sm btn-success" href="{% url 'lesson_create' module.pk %}">+ Урок</a>
+      <a class="btn btn-sm btn-outline-primary" href="{% url 'module_update' module.pk %}">Ред.</a>
+      <a class="btn btn-sm btn-outline-danger" href="{% url 'module_delete' module.pk %}">Вид.</a>
+    </span>
+    {% endif %}
+  </div>
+  <ul class="list-group list-group-flush">
+    {% for lesson in module.lessons.all %}
+    <li class="list-group-item"><a href="{% url 'lesson_detail' lesson.pk %}">{{ lesson.title }}</a></li>
+    {% empty %}
+    <li class="list-group-item text-muted">Уроків поки немає.</li>
+    {% endfor %}
+  </ul>
+</div>
+{% empty %}
+<p class="text-muted">Модулів поки немає.</p>
+{% endfor %}
+{% endblock %}
