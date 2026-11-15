@@ -27,6 +27,17 @@
 </div>
 {% endif %}
 
+{% if is_student %}
+<form method="post" action="{% url 'lesson_complete' lesson.pk %}" class="my-3">
+  {% csrf_token %}
+  {% if is_completed %}
+  <button class="btn btn-outline-success" type="submit">&#10003; Урок пройдено (натисніть, щоб зняти позначку)</button>
+  {% else %}
+  <button class="btn btn-success" type="submit">Позначити як пройдений</button>
+  {% endif %}
+</form>
+{% endif %}
+
 <div class="d-flex justify-content-between align-items-center mt-4 mb-2">
   <h2 class="h4 mb-0">Завдання</h2>
   {% if user.can_manage_assignments %}<a class="btn btn-success btn-sm" href="{% url 'assignment_create' lesson.pk %}">+ Завдання</a>{% endif %}

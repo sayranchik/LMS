@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Студенти курсу{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb"><ol class="breadcrumb">
+  <li class="breadcrumb-item"><a href="{% url 'course_detail' course.pk %}">{{ course.title }}</a></li>
+  <li class="breadcrumb-item active">Студенти</li>
+</ol></nav>
+<h1 class="h3 mb-3">Студенти курсу</h1>
+<div class="table-responsive">
+<table class="table align-middle">
+  <thead><tr><th>Студент</th><th>Записано</th><th style="min-width:200px">Прогрес</th></tr></thead>
+  <tbody>
+  {% for enrollment, progress in rows %}
+    <tr>
+      <td>{{ enrollment.student }}</td>
+      <td>{{ enrollment.enrolled_at|date:"d.m.Y" }}</td>
+      <td>
+        <div class="progress" role="progressbar" aria-valuenow="{{ progress.percent }}" aria-valuemin="0" aria-valuemax="100">
+          <div class="progress-bar" style="width: {{ progress.percent }}%">{{ progress.percent }}%</div>
+        </div>
+        <span class="small text-muted">{{ progress.done }} з {{ progress.total }} уроків</span>
+      </td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="3" class="text-muted">На курс ще ніхто не записаний.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

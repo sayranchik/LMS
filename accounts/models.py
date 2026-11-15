@@ -27,5 +27,11 @@ class User(AbstractUser):
     def can_manage_assignments(self):
         return self.is_lms_admin or self.is_teacher
 
+    def has_course_access(self, course):
+        """Студент бачить уроки лише записаних курсів; викладачі й адміни — усіх."""
+        if not self.is_student:
+            return True
+        return self.enrollments.filter(course=course).exists()
+
     def __str__(self):
         return self.get_full_name() or self.username

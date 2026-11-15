@@ -4,7 +4,7 @@ from django.urls import reverse
 from accounts.models import User
 from assignments.models import Assignment, Submission
 
-from .models import Course, Lesson, Module
+from .models import Course, Enrollment, Lesson, LessonProgress, Module
 
 
 class BaseLMSTestCase(TestCase):
@@ -19,6 +19,9 @@ class BaseLMSTestCase(TestCase):
         cls.assignment = Assignment.objects.create(
             lesson=cls.lesson, title="ДЗ 1", description="Зробіть", max_score=10
         )
+        # Базовый студент записан на курс; незаписанный — outsider.
+        Enrollment.objects.create(student=cls.student, course=cls.course)
+        cls.outsider = User.objects.create_user("outsider", password="pass12345", role=User.Role.STUDENT)
 
 
 class AccessTests(BaseLMSTestCase):
@@ -142,3 +145,133 @@ class AssignmentTests(BaseLMSTestCase):
         self.client.login(username="student", password="pass12345")
         resp = self.client.get(reverse("grade_list"))
         self.assertEqual(list(resp.context["submissions"]), [mine])
+
+
+class EnrollmentTests(BaseLMSTestCase):
+    def test_student_can_enroll_once(self):
+        self.client.login(username="outsider", password="pass12345")
+        url = reverse("course_enroll", args=[self.course.pk])
+        self.assertEqual(self.client.post(url).status_code, 302)
+        self.client.post(url)
+        self.assertEqual(Enrollment.objects.filter(student=self.outsider).count(), 1)
+
+    def test_enroll_requires_post(self):
+        self.client.login(username="outsider", password="pass12345")
+        resp = self.client.get(reverse("course_enroll", args=[self.course.pk]))
+        self.assertEqual(resp.status_code, 405)
+        self.assertFalse(Enrollment.objects.filter(student=self.outsider).exists())
+
+    def test_enroll_requires_login(self):
+        resp = self.client.post(reverse("course_enroll", args=[self.course.pk]))
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/accounts/login/", resp.url)
+
+    def test_teacher_and_admin_cannot_enroll(self):
+        for username in ("teacher", "admin1"):
+            self.client.login(username=username, password="pass12345")
+            resp = self.client.post(reverse("course_enroll", args=[self.course.pk]))
+            self.assertEqual(resp.status_code, 403)
+        self.assertEqual(Enrollment.objects.count(), 1)
+
+    def test_unenroll_removes_enrollment_but_keeps_progress(self):
+        LessonProgress.objects.create(student=self.student, lesson=self.lesson)
+        self.client.login(username="student", password="pass12345")
+        self.client.post(reverse("course_unenroll", args=[self.course.pk]))
+        self.assertFalse(Enrollment.objects.filter(student=self.student).exists())
+        self.assertTrue(LessonProgress.objects.filter(student=self.student).exists())
+
+    def test_unenrolled_student_cannot_open_lesson_or_assignment(self):
+        self.client.login(username="outsider", password="pass12345")
+        resp = self.client.get(reverse("lesson_detail", args=[self.lesson.pk]))
+        self.assertRedirects(resp, reverse("course_detail", args=[self.course.pk]))
+        resp = self.client.get(reverse("assignment_detail", args=[self.assignment.pk]))
+        self.assertEqual(resp.status_code, 403)
+
+    def test_unenrolled_student_cannot_submit(self):
+        self.client.login(username="outsider", password="pass12345")
+        resp = self.client.post(reverse("assignment_detail", args=[self.assignment.pk]), {"text": "x"})
+        self.assertEqual(resp.status_code, 403)
+        self.assertFalse(Submission.objects.filter(student=self.outsider).exists())
+
+    def test_unenrolled_student_still_sees_course_page(self):
+        self.client.login(username="outsider", password="pass12345")
+        resp = self.client.get(reverse("course_detail", args=[self.course.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(resp.context["has_access"])
+
+    def test_teacher_and_admin_open_lessons_without_enrollment(self):
+        for username in ("teacher", "admin1"):
+            self.client.login(username=username, password="pass12345")
+            self.assertEqual(self.client.get(reverse("lesson_detail", args=[self.lesson.pk])).status_code, 200)
+
+    def test_course_students_page_permissions(self):
+        url = reverse("course_students", args=[self.course.pk])
+        self.client.login(username="student", password="pass12345")
+        self.assertEqual(self.client.get(url).status_code, 403)
+        self.client.login(username="teacher", password="pass12345")
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(resp.context["rows"]), 1)
+
+
+class ProgressTests(BaseLMSTestCase):
+    def setUp(self):
+        self.lesson2 = Lesson.objects.create(module=self.module, title="Типи", order=2)
+        self.client.login(username="student", password="pass12345")
+
+    def test_complete_toggles_progress(self):
+        url = reverse("lesson_complete", args=[self.lesson.pk])
+        self.client.post(url)
+        self.assertTrue(LessonProgress.objects.filter(student=self.student, lesson=self.lesson).exists())
+        self.client.post(url)
+        self.assertFalse(LessonProgress.objects.filter(student=self.student, lesson=self.lesson).exists())
+
+    def test_progress_percent(self):
+        self.assertEqual(self.course.progress_for(self.student), {"done": 0, "total": 2, "percent": 0})
+        self.client.post(reverse("lesson_complete", args=[self.lesson.pk]))
+        self.assertEqual(self.course.progress_for(self.student), {"done": 1, "total": 2, "percent": 50})
+        self.client.post(reverse("lesson_complete", args=[self.lesson2.pk]))
+        self.assertEqual(self.course.progress_for(self.student)["percent"], 100)
+
+    def test_progress_for_empty_course_is_zero(self):
+        empty = Course.objects.create(title="Порожній", description="-")
+        self.assertEqual(empty.progress_for(self.student), {"done": 0, "total": 0, "percent": 0})
+
+    def test_progress_is_per_student(self):
+        Enrollment.objects.create(student=self.outsider, course=self.course)
+        self.client.post(reverse("lesson_complete", args=[self.lesson.pk]))
+        self.assertEqual(self.course.progress_for(self.outsider)["done"], 0)
+
+    def test_unenrolled_cannot_complete_lesson(self):
+        self.client.login(username="outsider", password="pass12345")
+        resp = self.client.post(reverse("lesson_complete", args=[self.lesson.pk]))
+        self.assertEqual(resp.status_code, 403)
+        self.assertFalse(LessonProgress.objects.filter(student=self.outsider).exists())
+
+    def test_teacher_cannot_complete_lesson(self):
+        self.client.login(username="teacher", password="pass12345")
+        resp = self.client.post(reverse("lesson_complete", args=[self.lesson.pk]))
+        self.assertEqual(resp.status_code, 403)
+
+    def test_complete_requires_post(self):
+        resp = self.client.get(reverse("lesson_complete", args=[self.lesson.pk]))
+        self.assertEqual(resp.status_code, 405)
+
+    def test_course_detail_shows_progress_and_completed_lessons(self):
+        self.client.post(reverse("lesson_complete", args=[self.lesson.pk]))
+        resp = self.client.get(reverse("course_detail", args=[self.course.pk]))
+        self.assertEqual(resp.context["progress"]["percent"], 50)
+        self.assertEqual(resp.context["completed_ids"], {self.lesson.pk})
+
+    def test_my_courses_lists_enrolled_courses_with_progress(self):
+        self.client.post(reverse("lesson_complete", args=[self.lesson.pk]))
+        resp = self.client.get(reverse("my_courses"))
+        self.assertEqual(resp.status_code, 200)
+        (course, progress), = resp.context["rows"]
+        self.assertEqual(course, self.course)
+        self.assertEqual(progress["done"], 1)
+
+    def test_deleting_lesson_removes_its_progress(self):
+        self.client.post(reverse("lesson_complete", args=[self.lesson2.pk]))
+        self.lesson2.delete()
+        self.assertEqual(LessonProgress.objects.count(), 0)

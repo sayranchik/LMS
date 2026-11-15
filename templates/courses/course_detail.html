@@ -3,15 +3,42 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
   <h1 class="h3">{{ course.title }}</h1>
-  {% if user.is_lms_admin %}
-  <div>
+  <div class="d-flex gap-2 flex-wrap">
+    {% if user.can_manage_assignments %}
+    <a class="btn btn-outline-secondary btn-sm" href="{% url 'course_students' course.pk %}">Студенти</a>
+    {% endif %}
+    {% if user.is_lms_admin %}
     <a class="btn btn-outline-primary btn-sm" href="{% url 'course_update' course.pk %}">Редагувати</a>
     <a class="btn btn-outline-danger btn-sm" href="{% url 'course_delete' course.pk %}">Видалити</a>
+    {% endif %}
   </div>
-  {% endif %}
 </div>
 {% if course.teacher %}<p class="text-muted">Викладач: {{ course.teacher }}</p>{% endif %}
 <p>{{ course.description|linebreaksbr }}</p>
+
+{% if is_student %}
+  {% if is_enrolled %}
+  <div class="card mb-4"><div class="card-body">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <strong>Ваш прогрес: {{ progress.done }} з {{ progress.total }} уроків</strong>
+      <form method="post" action="{% url 'course_unenroll' course.pk %}"
+            onsubmit="return confirm('Скасувати запис на курс?');">
+        {% csrf_token %}
+        <button class="btn btn-outline-secondary btn-sm" type="submit">Скасувати запис</button>
+      </form>
+    </div>
+    <div class="progress" role="progressbar" aria-valuenow="{{ progress.percent }}" aria-valuemin="0" aria-valuemax="100">
+      <div class="progress-bar" style="width: {{ progress.percent }}%">{{ progress.percent }}%</div>
+    </div>
+  </div></div>
+  {% else %}
+  <form method="post" action="{% url 'course_enroll' course.pk %}" class="mb-4">
+    {% csrf_token %}
+    <button class="btn btn-primary" type="submit">Записатися на курс</button>
+    <span class="text-muted small ms-2">Після запису відкриються уроки та завдання.</span>
+  </form>
+  {% endif %}
+{% endif %}
 
 <div class="d-flex justify-content-between align-items-center mt-4 mb-2">
   <h2 class="h4 mb-0">Модулі</h2>
@@ -32,7 +59,14 @@
   </div>
   <ul class="list-group list-group-flush">
     {% for lesson in module.lessons.all %}
-    <li class="list-group-item"><a href="{% url 'lesson_detail' lesson.pk %}">{{ lesson.title }}</a></li>
+    <li class="list-group-item">
+      {% if has_access %}
+        {% if lesson.pk in completed_ids %}<span class="text-success" title="Пройдено">&#10003;</span>{% endif %}
+        <a href="{% url 'lesson_detail' lesson.pk %}">{{ lesson.title }}</a>
+      {% else %}
+        <span class="text-muted">&#128274; {{ lesson.title }}</span>
+      {% endif %}
+    </li>
     {% empty %}
     <li class="list-group-item text-muted">Уроків поки немає.</li>
     {% endfor %}

@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Мої курси{% endblock %}
+{% block content %}
+<h1 class="h3 mb-3">Мої курси</h1>
+<div class="row g-3">
+  {% for course, progress in rows %}
+  <div class="col-md-6 col-lg-4">
+    <div class="card h-100 card-hover">
+      <div class="card-body">
+        <h2 class="h5 card-title"><a class="stretched-link text-decoration-none" href="{% url 'course_detail' course.pk %}">{{ course.title }}</a></h2>
+        <p class="small text-muted mb-2">Пройдено {{ progress.done }} з {{ progress.total }} уроків</p>
+        <div class="progress" role="progressbar" aria-valuenow="{{ progress.percent }}" aria-valuemin="0" aria-valuemax="100">
+          <div class="progress-bar" style="width: {{ progress.percent }}%">{{ progress.percent }}%</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% empty %}
+  <p class="text-muted">Ви ще не записані на жоден курс. <a href="{% url 'course_list' %}">Переглянути курси</a></p>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -1,5 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core.exceptions import PermissionDenied
 from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect
 from django.views.generic import CreateView, DeleteView, DetailView, ListView, UpdateView
@@ -46,6 +47,13 @@ class AssignmentDetailView(LoginRequiredMixin, DetailView):
 
     model = Assignment
     template_name = "assignments/assignment_detail.html"
+
+    def get_object(self, queryset=None):
+        assignment = super().get_object(queryset)
+        course = assignment.lesson.module.course
+        if not self.request.user.has_course_access(course):
+            raise PermissionDenied("Спочатку запишіться на курс.")
+        return assignment
 
     def _own_submission(self):
         return Submission.objects.filter(

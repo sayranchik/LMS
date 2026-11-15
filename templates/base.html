@@ -18,6 +18,9 @@
     <div class="collapse navbar-collapse" id="nav">
       <ul class="navbar-nav me-auto">
         <li class="nav-item"><a class="nav-link" href="{% url 'course_list' %}">Курси</a></li>
+        {% if user.is_student %}
+        <li class="nav-item"><a class="nav-link" href="{% url 'my_courses' %}">Мої курси</a></li>
+        {% endif %}
         {% if user.is_authenticated %}
         <li class="nav-item"><a class="nav-link" href="{% url 'grade_list' %}">Оцінки</a></li>
         {% endif %}

@@ -1,14 +1,19 @@
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.shortcuts import get_object_or_404
+from django.core.exceptions import PermissionDenied
+from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 from django.views.generic import (CreateView, DeleteView, DetailView, ListView,
                                   TemplateView, UpdateView)
 
-from accounts.mixins import AdminRequiredMixin
+from accounts.mixins import AdminRequiredMixin, StaffRequiredMixin
 
 from .forms import CourseForm, LessonForm, ModuleForm
-from .models import Announcement, Course, Event, Lesson, Module
+from .models import (Announcement, Course, Enrollment, Event, Lesson,
+                     LessonProgress, Module)
 
 
 class HomeView(TemplateView):
@@ -29,6 +34,14 @@ class CourseListView(LoginRequiredMixin, ListView):
     context_object_name = "courses"
     paginate_by = 12
 
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        user = self.request.user
+        ctx["enrolled_ids"] = (
+            set(user.enrollments.values_list("course_id", flat=True)) if user.is_student else set()
+        )
+        return ctx
+
 
 class CourseDetailView(LoginRequiredMixin, DetailView):
     model = Course
@@ -36,6 +49,21 @@ class CourseDetailView(LoginRequiredMixin, DetailView):
 
     def get_queryset(self):
         return Course.objects.prefetch_related("modules__lessons")
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        user = self.request.user
+        course = self.object
+        ctx["has_access"] = user.has_course_access(course)
+        ctx["is_student"] = user.is_student
+        if user.is_student:
+            ctx["is_enrolled"] = ctx["has_access"]
+            ctx["completed_ids"] = set(
+                LessonProgress.objects.filter(student=user, lesson__module__course=course)
+                .values_list("lesson_id", flat=True)
+            )
+            ctx["progress"] = course.progress_for(user)
+        return ctx
 
 
 class CourseCreateView(AdminRequiredMixin, CreateView):
@@ -101,6 +129,24 @@ class LessonDetailView(LoginRequiredMixin, DetailView):
     def get_queryset(self):
         return Lesson.objects.select_related("module__course").prefetch_related("assignments")
 
+    def get(self, request, *args, **kwargs):
+        lesson = self.get_object()
+        course = lesson.module.course
+        if not request.user.has_course_access(course):
+            messages.info(request, "Запишіться на курс, щоб відкрити його уроки.")
+            return redirect(course)
+        return super().get(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        user = self.request.user
+        ctx["is_student"] = user.is_student
+        if user.is_student:
+            ctx["is_completed"] = LessonProgress.objects.filter(
+                student=user, lesson=self.object
+            ).exists()
+        return ctx
+
 
 class LessonCreateView(AdminRequiredMixin, CreateView):
     model = Lesson
@@ -130,3 +176,74 @@ class LessonDeleteView(AdminRequiredMixin, DeleteView):
 
     def get_success_url(self):
         return self.object.module.course.get_absolute_url()
+
+
+# --- Запис на курс і прогрес ---------------------------------------------------
+
+def _require_student(user):
+    if not user.is_student:
+        raise PermissionDenied("Ця дія доступна лише студентам.")
+
+
+@login_required
+@require_POST
+def course_enroll(request, pk):
+    _require_student(request.user)
+    course = get_object_or_404(Course, pk=pk)
+    _, created = Enrollment.objects.get_or_create(student=request.user, course=course)
+    if created:
+        messages.success(request, f"Ви записані на курс «{course.title}».")
+    return redirect(course)
+
+
+@login_required
+@require_POST
+def course_unenroll(request, pk):
+    _require_student(request.user)
+    course = get_object_or_404(Course, pk=pk)
+    Enrollment.objects.filter(student=request.user, course=course).delete()
+    messages.info(request, f"Запис на курс «{course.title}» скасовано. Ваш прогрес збережено.")
+    return redirect(course)
+
+
+@login_required
+@require_POST
+def lesson_complete(request, pk):
+    """Перемикає позначку «урок пройдено»."""
+    _require_student(request.user)
+    lesson = get_object_or_404(Lesson.objects.select_related("module__course"), pk=pk)
+    if not request.user.has_course_access(lesson.module.course):
+        raise PermissionDenied("Спочатку запишіться на курс.")
+    progress, created = LessonProgress.objects.get_or_create(student=request.user, lesson=lesson)
+    if not created:
+        progress.delete()
+    return redirect(lesson)
+
+
+class MyCoursesView(LoginRequiredMixin, TemplateView):
+    template_name = "courses/my_courses.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        user = self.request.user
+        rows = []
+        if user.is_student:
+            enrollments = user.enrollments.select_related("course")
+            rows = [(e.course, e.course.progress_for(user)) for e in enrollments]
+        ctx["rows"] = rows
+        return ctx
+
+
+class CourseStudentsView(StaffRequiredMixin, DetailView):
+    """Викладач/адмін бачать записаних студентів та їхній прогрес."""
+
+    model = Course
+    template_name = "courses/course_students.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["rows"] = [
+            (e, self.object.progress_for(e.student))
+            for e in self.object.enrollments.select_related("student")
+        ]
+        return ctx

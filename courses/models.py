@@ -25,6 +25,13 @@ class Course(models.Model):
     def get_absolute_url(self):
         return reverse("course_detail", args=[self.pk])
 
+    def progress_for(self, user):
+        """Прогресс студента по курсу: пройдено уроков, всего уроков, процент."""
+        total = Lesson.objects.filter(module__course=self).count()
+        done = LessonProgress.objects.filter(student=user, lesson__module__course=self).count()
+        percent = round(done * 100 / total) if total else 0
+        return {"done": done, "total": total, "percent": percent}
+
 
 class Module(models.Model):
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name="modules")
@@ -103,3 +110,44 @@ class Event(models.Model):
     @property
     def is_upcoming(self):
         return self.starts_at >= timezone.now()
+
+
+class Enrollment(models.Model):
+    """Запись студента на курс."""
+
+    student = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="enrollments"
+    )
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name="enrollments")
+    enrolled_at = models.DateTimeField("Дата запису", auto_now_add=True)
+
+    class Meta:
+        ordering = ["-enrolled_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["student", "course"], name="one_enrollment_per_course"),
+        ]
+        verbose_name = "Запис на курс"
+        verbose_name_plural = "Записи на курси"
+
+    def __str__(self):
+        return f"{self.student} → {self.course}"
+
+
+class LessonProgress(models.Model):
+    """Урок, відмічений студентом як пройдений."""
+
+    student = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="lesson_progress"
+    )
+    lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, related_name="progress")
+    completed_at = models.DateTimeField("Пройдено", auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["student", "lesson"], name="one_progress_per_lesson"),
+        ]
+        verbose_name = "Прогрес по уроку"
+        verbose_name_plural = "Прогрес по уроках"
+
+    def __str__(self):
+        return f"{self.student}: {self.lesson}"
